@@ -5,6 +5,7 @@ package vnet
 
 import (
 	"errors"
+	"github.com/pion/transport/v3/xtime"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -66,7 +67,7 @@ func TestUDPConn(t *testing.T) {
 				atomic.AddInt32(&nClosed, 1)
 			},
 		}
-		conn, err = newUDPConn(srcAddr, nil, obs)
+		conn, err = newUDPConn(srcAddr, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		rcvdCh := make(chan struct{})
@@ -147,7 +148,7 @@ func TestUDPConn(t *testing.T) {
 				atomic.AddInt32(&nClosed, 1)
 			},
 		}
-		conn, err = newUDPConn(srcAddr, nil, obs)
+		conn, err = newUDPConn(srcAddr, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		conn.remAddr = dstAddr
 
@@ -208,7 +209,7 @@ func TestUDPConn(t *testing.T) {
 				atomic.AddInt32(&nClosed, 1)
 			},
 		}
-		conn, err = newUDPConn(srcAddr, nil, obs)
+		conn, err = newUDPConn(srcAddr, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		doneCh := make(chan struct{})
@@ -260,7 +261,7 @@ func TestUDPConn(t *testing.T) {
 		}
 
 		for i := 0; i < 1000; i++ { // nolint:staticcheck // (false positive detection)
-			conn, err = newUDPConn(srcAddr, nil, obs)
+			conn, err = newUDPConn(srcAddr, nil, obs, xtime.StdTimeManager{})
 			assert.NoError(t, err, "should succeed")
 
 			chDone := make(chan struct{})

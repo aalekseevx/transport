@@ -4,6 +4,7 @@
 package vnet
 
 import (
+	"github.com/pion/transport/v3/xtime"
 	"net"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ func TestNATTypeDefaults(t *testing.T) {
 		natType:       NATType{},
 		mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 		loggerFactory: loggerFactory,
-	})
+	}, xtime.StdTimeManager{})
 	assert.NoError(t, err, "should succeed")
 
 	assert.Equal(t, EndpointIndependent, nat.natType.MappingBehavior, "should match")
@@ -49,7 +50,7 @@ func TestNATMappingBehavior(t *testing.T) {
 			},
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		src := &net.UDPAddr{
@@ -141,7 +142,7 @@ func TestNATMappingBehavior(t *testing.T) {
 			},
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		src := &net.UDPAddr{
@@ -265,7 +266,7 @@ func TestNATMappingBehavior(t *testing.T) {
 			},
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		src := &net.UDPAddr{
@@ -386,7 +387,7 @@ func TestNATMappingBehavior(t *testing.T) {
 			},
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		oic1 := newChunkUDP(
@@ -456,7 +457,7 @@ func TestNATMappingBehavior(t *testing.T) {
 			},
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		oic1 := newChunkUDP(
@@ -531,7 +532,7 @@ func TestNATMappingTimeout(t *testing.T) {
 			},
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		src := &net.UDPAddr{
@@ -594,7 +595,7 @@ func TestNATMappingTimeout(t *testing.T) {
 			},
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		src := &net.UDPAddr{
@@ -652,7 +653,7 @@ func TestNAT1To1Behavior(t *testing.T) {
 			mappedIPs:     []net.IP{net.ParseIP(demoIP)},
 			localIPs:      []net.IP{net.ParseIP("10.0.0.1")},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		if !assert.NoError(t, err, "should succeed") {
 			return
 		}
@@ -717,7 +718,7 @@ func TestNAT1To1Behavior(t *testing.T) {
 				net.ParseIP("10.0.0.2"),
 			},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		if !assert.NoError(t, err, "should succeed") {
 			return
 		}
@@ -798,7 +799,7 @@ func TestNAT1To1Behavior(t *testing.T) {
 				Mode: NATModeNAT1To1,
 			},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.Error(t, err, "should fail")
 
 		// 1:1 NAT requires the same number of mappedIPs and localIPs
@@ -814,7 +815,7 @@ func TestNAT1To1Behavior(t *testing.T) {
 				net.ParseIP("10.0.0.1"),
 			},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.Error(t, err, "should fail")
 
 		// drop outbound or inbound chunk with no route in 1:1 NAT
@@ -830,7 +831,7 @@ func TestNAT1To1Behavior(t *testing.T) {
 				net.ParseIP("10.0.0.1"),
 			},
 			loggerFactory: loggerFactory,
-		})
+		}, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		before := newChunkUDP(

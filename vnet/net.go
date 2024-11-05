@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/pion/transport/v3/xtime"
 	"math/rand"
 	"net"
 	"strconv"
@@ -46,11 +47,12 @@ func newMACAddress() net.HardwareAddr {
 // Net represents a local network stack equivalent to a set of layers from NIC
 // up to the transport (UDP / TCP) layer.
 type Net struct {
-	interfaces []*transport.Interface // read-only
-	staticIPs  []net.IP               // read-only
-	router     *Router                // read-only
-	udpConns   *udpConnMap            // read-only
-	mutex      sync.RWMutex
+	interfaces  []*transport.Interface // read-only
+	staticIPs   []net.IP               // read-only
+	router      *Router                // read-only
+	udpConns    *udpConnMap            // read-only
+	timeManager xtime.TimeManager
+	mutex       sync.RWMutex
 }
 
 // Compile-time assertion
@@ -210,7 +212,7 @@ func (v *Net) _dialUDP(network string, locAddr, remAddr *net.UDPAddr) (transport
 		}
 	}
 
-	conn, err := newUDPConn(locAddr, remAddr, v)
+	conn, err := newUDPConn(locAddr, remAddr, v, v.timeManager)
 	if err != nil {
 		return nil, err
 	}
@@ -545,12 +547,20 @@ type NetConfig struct {
 	StaticIP string
 }
 
+type NetOption func(*Net)
+
+func NetWithTimeManager(manager xtime.TimeManager) NetOption {
+	return func(n *Net) {
+		n.timeManager = manager
+	}
+}
+
 // NewNet creates an instance of a virtual network.
 //
 // By design, it always have lo0 and eth0 interfaces.
 // The lo0 has the address 127.0.0.1 assigned by default.
 // IP address for eth0 will be assigned when this Net is added to a router.
-func NewNet(config *NetConfig) (*Net, error) {
+func NewNet(config *NetConfig, opts ...NetOption) (*Net, error) {
 	lo0 := transport.NewInterface(net.Interface{
 		Index:        1,
 		MTU:          16384,
@@ -583,11 +593,16 @@ func NewNet(config *NetConfig) (*Net, error) {
 		}
 	}
 
-	return &Net{
-		interfaces: []*transport.Interface{lo0, eth0},
-		staticIPs:  staticIPs,
-		udpConns:   newUDPConnMap(),
-	}, nil
+	n := &Net{
+		interfaces:  []*transport.Interface{lo0, eth0},
+		staticIPs:   staticIPs,
+		udpConns:    newUDPConnMap(),
+		timeManager: xtime.StdTimeManager{},
+	}
+	for _, opt := range opts {
+		opt(n)
+	}
+	return n, nil
 }
 
 // DialTCP acts like Dial for TCP networks.

@@ -56,7 +56,7 @@ var assignChunkTag = func() func() string { //nolint:gochecknoglobals
 
 // Chunk represents a packet passed around in the vnet
 type Chunk interface {
-	setTimestamp() time.Time                 // used by router
+	setTimestamp(time.Time)                  // used by router
 	getTimestamp() time.Time                 // used by router
 	getSourceIP() net.IP                     // used by router
 	getDestinationIP() net.IP                // used by router
@@ -79,9 +79,8 @@ type chunkIP struct {
 	tag           string
 }
 
-func (c *chunkIP) setTimestamp() time.Time {
-	c.timestamp = time.Now()
-	return c.timestamp
+func (c *chunkIP) setTimestamp(t time.Time) {
+	c.timestamp = t
 }
 
 func (c *chunkIP) getTimestamp() time.Time {

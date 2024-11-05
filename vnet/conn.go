@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pion/transport/v3"
+	"github.com/pion/transport/v3/xtime"
 )
 
 const (
@@ -44,12 +45,12 @@ type UDPConn struct {
 	readCh    chan Chunk   // thread-safe
 	closed    bool         // requires mutex
 	mu        sync.Mutex   // to mutex closed flag
-	readTimer *time.Timer  // thread-safe
+	readTimer xtime.Timer  // thread-safe
 }
 
 var _ transport.UDPConn = &UDPConn{}
 
-func newUDPConn(locAddr, remAddr *net.UDPAddr, obs connObserver) (*UDPConn, error) {
+func newUDPConn(locAddr, remAddr *net.UDPAddr, obs connObserver, tm xtime.TimeManager) (*UDPConn, error) {
 	if obs == nil {
 		return nil, errObsCannotBeNil
 	}
@@ -59,7 +60,7 @@ func newUDPConn(locAddr, remAddr *net.UDPAddr, obs connObserver) (*UDPConn, erro
 		remAddr:   remAddr,
 		obs:       obs,
 		readCh:    make(chan Chunk, maxReadQueueSize),
-		readTimer: time.NewTimer(time.Duration(math.MaxInt64)),
+		readTimer: tm.NewTimer(time.Duration(math.MaxInt64)),
 	}, nil
 }
 
@@ -173,7 +174,8 @@ loop:
 			}
 			return n, addr, err
 
-		case <-c.readTimer.C:
+		case tick := <-c.readTimer.C():
+			tick.Done <- struct{}{}
 			return 0, nil, &net.OpError{
 				Op:   "read",
 				Net:  c.locAddr.Network(),

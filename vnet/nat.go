@@ -6,6 +6,7 @@ package vnet
 import (
 	"errors"
 	"fmt"
+	"github.com/pion/transport/v3/xtime"
 	"net"
 	"sync"
 	"time"
@@ -94,9 +95,10 @@ type networkAddressTranslator struct {
 	udpPortCounter int
 	mutex          sync.RWMutex
 	log            logging.LeveledLogger
+	timeManager    xtime.TimeManager
 }
 
-func newNAT(config *natConfig) (*networkAddressTranslator, error) {
+func newNAT(config *natConfig, timeManager xtime.TimeManager) (*networkAddressTranslator, error) {
 	natType := config.natType
 
 	if natType.Mode == NATModeNAT1To1 {
@@ -128,6 +130,7 @@ func newNAT(config *natConfig) (*networkAddressTranslator, error) {
 		outboundMap: map[string]*mapping{},
 		inboundMap:  map[string]*mapping{},
 		log:         config.loggerFactory.NewLogger("vnet"),
+		timeManager: timeManager,
 	}, nil
 }
 
@@ -203,7 +206,7 @@ func (n *networkAddressTranslator) translateOutbound(from Chunk) (Chunk, error) 
 					bound:   bound,
 					mapped:  fmt.Sprintf("%s:%d", n.mappedIPs[0].String(), mappedPort),
 					filters: map[string]struct{}{},
-					expires: time.Now().Add(n.natType.MappingLifeTime),
+					expires: n.timeManager.Now().Add(n.natType.MappingLifeTime),
 				}
 
 				n.outboundMap[oKey] = m
@@ -299,7 +302,7 @@ func (n *networkAddressTranslator) translateInbound(from Chunk) (Chunk, error) {
 
 // caller must hold the mutex
 func (n *networkAddressTranslator) findOutboundMapping(oKey string) *mapping {
-	now := time.Now()
+	now := n.timeManager.Now()
 
 	m, ok := n.outboundMap[oKey]
 	if ok {
@@ -308,7 +311,7 @@ func (n *networkAddressTranslator) findOutboundMapping(oKey string) *mapping {
 			n.removeMapping(m)
 			m = nil // expired
 		} else {
-			m.expires = time.Now().Add(n.natType.MappingLifeTime)
+			m.expires = n.timeManager.Now().Add(n.natType.MappingLifeTime)
 		}
 	}
 
@@ -317,7 +320,7 @@ func (n *networkAddressTranslator) findOutboundMapping(oKey string) *mapping {
 
 // caller must hold the mutex
 func (n *networkAddressTranslator) findInboundMapping(iKey string) *mapping {
-	now := time.Now()
+	now := n.timeManager.Now()
 	m, ok := n.inboundMap[iKey]
 	if !ok {
 		return nil

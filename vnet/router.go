@@ -6,6 +6,7 @@ package vnet
 import (
 	"errors"
 	"fmt"
+	"github.com/pion/transport/v3/xtime"
 	"math/rand"
 	"net"
 	"strings"
@@ -102,10 +103,19 @@ type Router struct {
 	pushCh         chan struct{}             // writer requires mutex
 	loggerFactory  logging.LoggerFactory     // read-only
 	log            logging.LeveledLogger     // read-only
+	timeManager    xtime.TimeManager
+}
+
+type RouterOption func(*Router)
+
+func RouterWithTimeManager(t xtime.TimeManager) RouterOption {
+	return func(r *Router) {
+		r.timeManager = t
+	}
 }
 
 // NewRouter ...
-func NewRouter(config *RouterConfig) (*Router, error) {
+func NewRouter(config *RouterConfig, opts ...RouterOption) (*Router, error) {
 	loggerFactory := config.LoggerFactory
 	log := loggerFactory.NewLogger("vnet")
 
@@ -179,7 +189,7 @@ func NewRouter(config *RouterConfig) (*Router, error) {
 		}
 	}
 
-	return &Router{
+	r := &Router{
 		name:           name,
 		interfaces:     []*transport.Interface{lo0, eth0},
 		ipv4Net:        ipv4Net,
@@ -194,7 +204,12 @@ func NewRouter(config *RouterConfig) (*Router, error) {
 		pushCh:         make(chan struct{}, 1),
 		loggerFactory:  loggerFactory,
 		log:            log,
-	}, nil
+		timeManager:    xtime.StdTimeManager{},
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r, nil
 }
 
 // caller must hold the mutex
@@ -250,9 +265,10 @@ func (r *Router) Start() error {
 					break loop
 				}
 			} else {
-				t := time.NewTimer(d)
+				t := r.timeManager.NewTimer(d)
 				select {
-				case <-t.C:
+				case tick := <-t.C():
+					<-tick.Done
 				case <-cancelCh:
 					break loop
 				}
@@ -410,7 +426,7 @@ func (r *Router) push(c Chunk) {
 
 	r.log.Debugf("[%s] route %s", r.name, c.String())
 	if r.stopFunc != nil {
-		c.setTimestamp()
+		c.setTimestamp(r.timeManager.Now())
 		if r.queue.push(c) {
 			select {
 			case r.pushCh <- struct{}{}:
@@ -429,7 +445,7 @@ func (r *Router) processChunks() (time.Duration, error) {
 	// Introduce jitter by delaying the processing of chunks.
 	if r.maxJitter > 0 {
 		jitter := time.Duration(rand.Int63n(int64(r.maxJitter))) //nolint:gosec
-		time.Sleep(jitter)
+		r.timeManager.Sleep(jitter)
 	}
 
 	//      cutOff
@@ -441,7 +457,7 @@ func (r *Router) processChunks() (time.Duration, error) {
 	//  |<--->|     now
 	//    due
 
-	enteredAt := time.Now()
+	enteredAt := r.timeManager.Now()
 	cutOff := enteredAt.Add(-r.minDelay)
 
 	var d time.Duration // the next sleep duration
@@ -598,7 +614,7 @@ func (r *Router) setRouter(parent *Router) error {
 		mappedIPs:     mappedIPs,
 		localIPs:      localIPs,
 		loggerFactory: r.loggerFactory,
-	})
+	}, r.timeManager)
 	if err != nil {
 		return err
 	}

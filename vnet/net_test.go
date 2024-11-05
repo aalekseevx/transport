@@ -5,6 +5,7 @@ package vnet
 
 import (
 	"fmt"
+	"github.com/pion/transport/v3/xtime"
 	"net"
 	"testing"
 
@@ -211,7 +212,7 @@ func TestNetVirtual(t *testing.T) {
 			conn, err2 := newUDPConn(&net.UDPAddr{
 				IP:   net.ParseIP(addr),
 				Port: port,
-			}, nil, &myConnObserver{})
+			}, nil, &myConnObserver{}, xtime.StdTimeManager{})
 			assert.NoError(t, err2, "should succeed")
 			err2 = nw.udpConns.insert(conn)
 			assert.NoError(t, err2, "should succeed")

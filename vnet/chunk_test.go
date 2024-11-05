@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pion/logging"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +53,8 @@ func TestChunk(t *testing.T) {
 		assert.True(t, c.getDestinationIP().Equal(dst.IP), "ip should match")
 
 		// Test timestamp
-		ts := c.setTimestamp()
+		ts := time.Now()
+		c.setTimestamp(ts)
 		assert.Equal(t, ts, c.getTimestamp(), "timestamp should match")
 
 		uc := c.(*chunkUDP) //nolint:forcetypeassert
@@ -102,7 +104,8 @@ func TestChunk(t *testing.T) {
 		assert.Equal(t, tcp.flags, tcpSYN, "flags should match")
 
 		// Test timestamp
-		ts := c.setTimestamp()
+		ts := time.Now()
+		c.setTimestamp(ts)
 		assert.Equal(t, ts, c.getTimestamp(), "timestamp should match")
 
 		tc := c.(*chunkTCP) //nolint:forcetypeassert

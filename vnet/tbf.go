@@ -4,6 +4,7 @@
 package vnet
 
 import (
+	"github.com/pion/transport/v3/xtime"
 	"math"
 	"sync"
 	"time"
@@ -36,7 +37,8 @@ type TokenBucketFilter struct {
 	wg   sync.WaitGroup
 	done chan struct{}
 
-	log logging.LeveledLogger
+	log         logging.LeveledLogger
+	timeManager xtime.TimeManager
 }
 
 // TBFOption is the option type to configure a TokenBucketFilter
@@ -72,6 +74,16 @@ func TBFMaxBurst(size int) TBFOption {
 		previous := t.maxBurst
 		t.maxBurst = size
 		return TBFMaxBurst(previous)
+	}
+}
+
+func TBFTimeManager(tm xtime.TimeManager) TBFOption {
+	return func(t *TokenBucketFilter) TBFOption {
+		t.mutex.Lock()
+		defer t.mutex.Unlock()
+		previous := t.timeManager
+		t.timeManager = tm
+		return TBFTimeManager(previous)
 	}
 }
 
@@ -114,7 +126,7 @@ func (t *TokenBucketFilter) run() {
 	defer t.wg.Done()
 
 	t.refillTokens(t.minRefillDuration)
-	lastRefill := time.Now()
+	lastRefill := t.timeManager.Now()
 
 	for {
 		select {
@@ -124,7 +136,7 @@ func (t *TokenBucketFilter) run() {
 		case chunk := <-t.c:
 			if time.Since(lastRefill) > t.minRefillDuration {
 				t.refillTokens(time.Since(lastRefill))
-				lastRefill = time.Now()
+				lastRefill = t.timeManager.Now()
 			}
 			t.queue.push(chunk)
 			t.drainQueue()

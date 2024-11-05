@@ -5,6 +5,8 @@ package vnet
 
 import (
 	"context"
+	"fmt"
+	"github.com/pion/transport/v3/xtime"
 	"testing"
 	"time"
 
@@ -14,7 +16,12 @@ import (
 func TestDelayFilter(t *testing.T) {
 	t.Run("schedulesOnePacketAtATime", func(t *testing.T) {
 		nic := newMockNIC(t)
-		df, err := NewDelayFilter(nic, 10*time.Millisecond)
+		//	tm := vtime.NewSimulator(time.Time{})
+		//	tm.Start()
+		//	defer tm.Stop()
+		tm := xtime.StdTimeManager{}
+
+		df, err := NewDelayFilter(nic, 10*time.Millisecond, DelayFilterWithTimeManager(tm))
 		if !assert.NoError(t, err, "should succeed") {
 			return
 		}
@@ -29,7 +36,7 @@ func TestDelayFilter(t *testing.T) {
 		}
 		receiveCh := make(chan TimestampedChunk)
 		nic.mockOnInboundChunk = func(c Chunk) {
-			receivedAt := time.Now()
+			receivedAt := tm.Now()
 			receiveCh <- TimestampedChunk{
 				ts: receivedAt,
 				c:  c,
@@ -38,11 +45,12 @@ func TestDelayFilter(t *testing.T) {
 
 		lastNr := -1
 		for i := 0; i < 100; i++ {
-			sent := time.Now()
+			sent := tm.Now()
 			df.onInboundChunk(&chunkUDP{
 				chunkIP:  chunkIP{timestamp: sent},
 				userData: []byte{byte(i)},
 			})
+			fmt.Println("sent at", sent)
 
 			select {
 			case c := <-receiveCh:
@@ -52,7 +60,7 @@ func TestDelayFilter(t *testing.T) {
 				lastNr = nr
 
 				assert.Greater(t, c.ts.Sub(sent), 10*time.Millisecond)
-			case <-time.After(time.Second):
+			case <-tm.After(time.Second):
 				assert.Fail(t, "expected to receive next chunk")
 			}
 		}

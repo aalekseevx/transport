@@ -4,6 +4,7 @@
 package vnet
 
 import (
+	"github.com/pion/transport/v3/xtime"
 	"net"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
 			Port: 1234,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		err = connMap.insert(connIn)
@@ -59,7 +60,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("0.0.0.0"),
 			Port: 1234,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		err = connMap.insert(connIn)
@@ -84,7 +85,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("0.0.0.0"),
 			Port: 1234,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		err = connMap.insert(connIn)
@@ -106,7 +107,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn1, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("10.1.2.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn1)
 		assert.NoError(t, err, "should succeed")
@@ -114,7 +115,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn2, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("10.1.2.2"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn2)
 		assert.NoError(t, err, "should succeed")
@@ -143,7 +144,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn1, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("10.1.2.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn1)
 		assert.NoError(t, err, "should succeed")
@@ -151,7 +152,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn2, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("0.0.0.0"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		err = connMap.insert(connIn2)
@@ -165,7 +166,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn1, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("0.0.0.0"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn1)
 		assert.NoError(t, err, "should succeed")
@@ -173,7 +174,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn2, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("192.168.0.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		err = connMap.insert(connIn2)
@@ -187,7 +188,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn1, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("192.168.0.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn1)
 		assert.NoError(t, err, "should succeed")
@@ -195,7 +196,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn2, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("192.168.0.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 
 		err = connMap.insert(connIn2)
@@ -209,7 +210,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("192.168.0.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn)
 		assert.NoError(t, err, "should succeed")
@@ -228,7 +229,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("192.168.0.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn)
 		assert.NoError(t, err, "should succeed")
@@ -248,7 +249,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn1, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("192.168.0.1"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn1)
 		assert.NoError(t, err, "should succeed")
@@ -256,7 +257,7 @@ func TestUDPConnMap(t *testing.T) {
 		connIn2, err := newUDPConn(&net.UDPAddr{
 			IP:   net.ParseIP("192.168.0.2"),
 			Port: 5678,
-		}, nil, obs)
+		}, nil, obs, xtime.StdTimeManager{})
 		assert.NoError(t, err, "should succeed")
 		err = connMap.insert(connIn2)
 		assert.NoError(t, err, "should succeed")
