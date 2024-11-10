@@ -81,13 +81,14 @@ func testSchedulesSubsequentManyPackets(t *testing.T, tm xtime.TimeManager) {
 	}
 
 	// schedule 100 chunks
-	sent := tm.Now()
+	sent := tm.FreezeNow()
 	for i := 0; i < 100; i++ {
 		df.onInboundChunk(&chunkUDP{
-			chunkIP:  chunkIP{timestamp: sent},
+			chunkIP:  chunkIP{timestamp: sent.Time},
 			userData: []byte{byte(i)},
 		})
 	}
+	sent.Done <- struct{}{}
 
 	// receive 100 chunks with delay>10ms
 	for i := 0; i < 100; i++ {
@@ -95,8 +96,8 @@ func testSchedulesSubsequentManyPackets(t *testing.T, tm xtime.TimeManager) {
 		case c := <-receiveCh:
 			nr := int(c.c.UserData()[0])
 			assert.Equal(t, i, nr)
-			assert.Greater(t, c.ts.Sub(sent), 10*time.Millisecond)
-		case <-tm.After(time.Second):
+			assert.Greater(t, c.ts.Sub(sent.Time), 10*time.Millisecond)
+		case <-tm.After(time.Second, false):
 			assert.Fail(t, "expected to receive next chunk")
 		}
 	}

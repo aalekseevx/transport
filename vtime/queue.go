@@ -62,7 +62,6 @@ func (q *eventQueue) Len() int {
 
 func (q *eventQueue) Push(at time.Time, do func()) {
 	q.cond.L.Lock()
-	defer q.cond.L.Unlock()
 
 	event := queueElement{
 		id: q.nextID,
@@ -71,6 +70,7 @@ func (q *eventQueue) Push(at time.Time, do func()) {
 	}
 	q.nextID += 1
 	heap.Push(q.eventHeap, event)
+	q.cond.L.Unlock()
 	q.cond.Signal()
 }
 

@@ -24,7 +24,7 @@ func (r StdTimeManager) NewTicker(duration time.Duration) Ticker {
 	}
 }
 
-func (t StdTimeManager) NewTimer(d time.Duration) Timer {
+func (t StdTimeManager) NewTimer(d time.Duration, _ bool) Timer {
 	c := make(chan Tick)
 	timer := time.NewTimer(d)
 	go func() {
@@ -41,8 +41,8 @@ func (t StdTimeManager) NewTimer(d time.Duration) Timer {
 	}
 }
 
-func (t StdTimeManager) After(d time.Duration) <-chan Tick {
-	return t.NewTimer(d).C()
+func (t StdTimeManager) After(d time.Duration, _ bool) <-chan Tick {
+	return t.NewTimer(d, false).C()
 }
 
 func (r StdTimeManager) Sleep(duration time.Duration) time.Time {
@@ -90,7 +90,11 @@ func (t stdTimer) C() <-chan Tick {
 func (t stdTimer) Stop() bool {
 	stopped := t.timer.Stop()
 	if !stopped {
-		<-t.timer.C // remove on go1.23
+		select {
+		case <-t.timer.C: // remove on go1.23
+		default:
+
+		}
 	}
 	return stopped
 }

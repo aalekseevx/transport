@@ -24,8 +24,8 @@ type Timer interface {
 
 type TimeManager interface {
 	NewTicker(d time.Duration) Ticker
-	NewTimer(d time.Duration) Timer
-	After(d time.Duration) <-chan Tick
+	NewTimer(d time.Duration, blocking bool) Timer
+	After(d time.Duration, blocking bool) <-chan Tick
 	Sleep(d time.Duration) time.Time
 	Now() time.Time
 	FreezeNow() Tick

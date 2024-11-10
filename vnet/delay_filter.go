@@ -5,20 +5,23 @@ package vnet
 
 import (
 	"context"
-	"fmt"
 	"github.com/pion/transport/v3/xtime"
 	"time"
 )
+
+type push struct {
+	chunk Chunk
+	done  chan struct{}
+}
 
 // DelayFilter delays outgoing packets by the given delay. Run must be called
 // before any packets will be forwarded.
 type DelayFilter struct {
 	NIC
 	delay       time.Duration
-	push        chan chan struct{}
+	push        chan push
 	queue       *chunkQueue
 	timeManager xtime.TimeManager
-	timer       xtime.Timer
 }
 
 type timedChunk struct {
@@ -39,10 +42,9 @@ func NewDelayFilter(nic NIC, delay time.Duration, opts ...DelayFilterOption) (*D
 	f := &DelayFilter{
 		NIC:         nic,
 		delay:       delay,
-		push:        make(chan chan struct{}),
+		push:        make(chan push),
 		queue:       newChunkQueue(0, 0),
 		timeManager: xtime.StdTimeManager{},
-		timer:       nil,
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -51,30 +53,35 @@ func NewDelayFilter(nic NIC, delay time.Duration, opts ...DelayFilterOption) (*D
 }
 
 func (f *DelayFilter) onInboundChunk(c Chunk) {
-	nowTick := f.timeManager.FreezeNow()
-	f.queue.push(timedChunk{
-		Chunk:    c,
-		deadline: nowTick.Time.Add(f.delay),
-	})
-	next := f.queue.peek().(timedChunk) //nolint:forcetypeassert
-	if f.timer == nil {
-		f.timer = f.timeManager.NewTimer(f.timeManager.Until(next.deadline))
-	} else {
-		f.timer.Stop()
-		f.timer.Reset(f.timeManager.Until(next.deadline))
+	ch := make(chan struct{})
+	f.push <- push{
+		chunk: c,
+		done:  ch,
 	}
-	nowTick.Done <- struct{}{}
+	<-ch
 }
 
 // Run starts forwarding of packets. Packets will be forwarded if they spent
 // >delay time in the internal queue. Must be called before any packet will be
 // forwarded.
 func (f *DelayFilter) Run(ctx context.Context) {
-	timer := f.timeManager.NewTimer(0)
+	timer := f.timeManager.NewTimer(0, true)
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case chunk := <-f.push:
+			nowTick := f.timeManager.FreezeNow()
+			f.queue.push(timedChunk{
+				Chunk:    chunk.chunk,
+				deadline: nowTick.Time.Add(f.delay),
+			})
+			next := f.queue.peek().(timedChunk) //nolint:forcetypeassert
+			timer.Stop()
+			udl := f.timeManager.Until(next.deadline)
+			timer.Reset(udl)
+			nowTick.Done <- struct{}{}
+			chunk.done <- struct{}{}
 		case tick := <-timer.C():
 			f.onTick(timer, tick.Time)
 			tick.Done <- struct{}{}
@@ -83,7 +90,6 @@ func (f *DelayFilter) Run(ctx context.Context) {
 }
 
 func (f *DelayFilter) onTick(timer xtime.Timer, now time.Time) {
-	fmt.Println("tick")
 	next := f.queue.peek()
 	if next == nil {
 		timer.Reset(time.Minute)

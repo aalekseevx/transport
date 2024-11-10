@@ -60,7 +60,7 @@ func newUDPConn(locAddr, remAddr *net.UDPAddr, obs connObserver, tm xtime.TimeMa
 		remAddr:   remAddr,
 		obs:       obs,
 		readCh:    make(chan Chunk, maxReadQueueSize),
-		readTimer: tm.NewTimer(time.Duration(math.MaxInt64)),
+		readTimer: tm.NewTimer(time.Duration(math.MaxInt64), true),
 	}, nil
 }
 

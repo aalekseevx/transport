@@ -14,21 +14,23 @@ type timer struct {
 	mu        sync.Mutex
 	expiresAt time.Time
 	simulator *Simulator
+	blocking  bool
 }
 
-func (s *Simulator) NewTimer(d time.Duration) xtime.Timer {
+func (s *Simulator) NewTimer(d time.Duration, blocking bool) xtime.Timer {
 	t := &timer{
 		c:         make(chan xtime.Tick),
 		mu:        sync.Mutex{},
 		expiresAt: time.Time{},
 		simulator: s,
+		blocking:  blocking,
 	}
 	t.Reset(d)
 	return t
 }
 
-func (s *Simulator) After(d time.Duration) <-chan xtime.Tick {
-	return s.NewTimer(d).C()
+func (s *Simulator) After(d time.Duration, blocking bool) <-chan xtime.Tick {
+	return s.NewTimer(d, blocking).C()
 }
 
 func (t *timer) C() <-chan xtime.Tick {
@@ -52,7 +54,7 @@ func (t *timer) Reset(duration time.Duration) bool {
 	wasReset := t.expiresAt.Before(newExpiresAt)
 	t.expiresAt = t.simulator.now.Add(duration)
 	t.simulator.timeLock.RUnlock()
-
+	
 	t.simulator.queue.Push(t.expiresAt, func() {
 		t.mu.Lock()
 		if !t.expiresAt.Equal(t.simulator.now) {
@@ -66,12 +68,18 @@ func (t *timer) Reset(duration time.Duration) bool {
 			Done: make(chan struct{}),
 			Time: t.simulator.now,
 		}
-		select {
-		case t.c <- tick:
-			// Somebody is listening, wait for reply
-			<-tick.Done
-		default:
-			// Nobody is actively listening
+
+		if t.blocking {
+			select {
+			case t.c <- tick:
+				<-tick.Done
+			}
+		} else {
+			select {
+			case t.c <- tick:
+				<-tick.Done
+			default:
+			}
 		}
 	})
 
