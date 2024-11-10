@@ -1,12 +1,17 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package vtime
 
 import (
 	"github.com/pion/transport/v3/xtime"
+	"sync"
 	"time"
 )
 
 type timer struct {
 	c         chan xtime.Tick
+	mu        sync.Mutex
 	expiresAt time.Time
 	simulator *Simulator
 }
@@ -14,6 +19,7 @@ type timer struct {
 func (s *Simulator) NewTimer(d time.Duration) xtime.Timer {
 	t := &timer{
 		c:         make(chan xtime.Tick),
+		mu:        sync.Mutex{},
 		expiresAt: time.Time{},
 		simulator: s,
 	}
@@ -22,7 +28,7 @@ func (s *Simulator) NewTimer(d time.Duration) xtime.Timer {
 }
 
 func (s *Simulator) After(d time.Duration) <-chan xtime.Tick {
-	return s.NewTicker(d).C()
+	return s.NewTimer(d).C()
 }
 
 func (t *timer) C() <-chan xtime.Tick {
@@ -30,39 +36,44 @@ func (t *timer) C() <-chan xtime.Tick {
 }
 
 func (t *timer) Stop() bool {
-	t.simulator.cond.L.Lock()
-
+	t.mu.Lock()
 	t.expiresAt = time.Time{}
 	wasSet := !t.expiresAt.IsZero()
-
-	t.simulator.cond.L.Unlock()
+	t.mu.Unlock()
 	return wasSet
 }
 
 func (t *timer) Reset(duration time.Duration) bool {
-	t.simulator.cond.L.Lock()
-
+	if duration < 0 {
+		panic("duration must be non negative")
+	}
+	t.simulator.timeLock.RLock()
 	newExpiresAt := t.simulator.now.Add(duration)
 	wasReset := t.expiresAt.Before(newExpiresAt)
 	t.expiresAt = t.simulator.now.Add(duration)
+	t.simulator.timeLock.RUnlock()
 
-	t.simulator.pushEvent(t.expiresAt, func() {
-		t.simulator.cond.L.Lock()
+	t.simulator.queue.Push(t.expiresAt, func() {
+		t.mu.Lock()
 		if !t.expiresAt.Equal(t.simulator.now) {
-			t.simulator.cond.L.Unlock()
+			t.mu.Unlock()
 			return
 		}
 		t.expiresAt = time.Time{}
+		t.mu.Unlock()
+
 		tick := xtime.Tick{
 			Done: make(chan struct{}),
 			Time: t.simulator.now,
 		}
-		t.simulator.cond.L.Unlock()
-		t.c <- tick
-		<-tick.Done
+		select {
+		case t.c <- tick:
+			// Somebody is listening, wait for reply
+			<-tick.Done
+		default:
+			// Nobody is actively listening
+		}
 	})
 
-	t.simulator.cond.L.Unlock()
-	t.simulator.cond.Signal()
 	return wasReset
 }

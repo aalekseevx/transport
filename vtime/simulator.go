@@ -1,27 +1,29 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package vtime
 
 import (
-	"container/heap"
-	"sync"
+	"github.com/pion/transport/v3/xtime"
+	"sync/atomic"
 	"time"
 )
 
 type Simulator struct {
-	nextID  int
-	now     time.Time
-	queue   *eventQueue
-	stopped bool
-	cond    sync.Cond
+	nextID      int
+	now         time.Time
+	queue       *eventQueue
+	timeLock    recursiveRWLock
+	timeStopped atomic.Bool
 }
 
 func NewSimulator(start time.Time) *Simulator {
-	eq := &eventQueue{}
-	heap.Init(eq)
 	return &Simulator{
-		nextID: 0,
-		now:    start,
-		queue:  eq,
-		cond:   sync.Cond{L: &sync.Mutex{}},
+		nextID:      0,
+		now:         start,
+		queue:       newEventQueue(),
+		timeLock:    recursiveRWLock{},
+		timeStopped: atomic.Bool{},
 	}
 }
 
@@ -30,41 +32,43 @@ func (s *Simulator) Start() {
 }
 
 func (s *Simulator) Stop() {
-	s.cond.L.Lock()
-	s.stopped = true
-	s.cond.L.Unlock()
-	s.cond.Signal()
+	s.queue.Stop()
 }
 
 func (s *Simulator) Now() time.Time {
-	s.cond.L.Lock()
+	return s.now
+}
+
+func (s *Simulator) FreezeNow() xtime.Tick {
+	s.timeLock.RLock()
 	now := s.now
-	s.cond.L.Unlock()
-	return now
+	ch := make(chan struct{})
+	go func() {
+		<-ch
+		s.timeLock.RUnlock()
+	}()
+	return xtime.Tick{
+		Done: ch,
+		Time: now,
+	}
+}
+
+func (s *Simulator) Until(tm time.Time) time.Duration {
+	return tm.Sub(s.now)
 }
 
 func (s *Simulator) eventLoop() {
 	for {
-		s.cond.L.Lock()
-		for s.queue.Len() == 0 && !s.stopped {
-			s.cond.Wait() // Wait until a new event is added
-		}
-		if s.stopped {
+		now, do, run := s.queue.Pull()
+		if !run {
 			return
 		}
-		event := heap.Pop(s.queue).(queueElement)
-		s.now = event.at
-		s.cond.L.Unlock()
-		event.do()
-	}
-}
+		s.timeLock.Lock()
+		s.now = now
+		s.timeLock.Unlock()
 
-func (s *Simulator) pushEvent(at time.Time, do func()) {
-	event := queueElement{
-		id: s.nextID,
-		at: at,
-		do: do,
+		s.timeStopped.Store(true)
+		do()
+		s.timeStopped.Store(false)
 	}
-	s.nextID += 1
-	heap.Push(s.queue, event)
 }

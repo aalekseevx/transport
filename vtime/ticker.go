@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package vtime
 
 import (
@@ -11,6 +14,9 @@ type ticker struct {
 }
 
 func (s *Simulator) NewTicker(duration time.Duration) xtime.Ticker {
+	if duration < 0 {
+		panic("ticker duration must not be negative")
+	}
 	t := &ticker{
 		c:       make(chan xtime.Tick),
 		stopped: false,
@@ -26,16 +32,12 @@ func (s *Simulator) NewTicker(duration time.Duration) xtime.Ticker {
 		}
 		t.c <- tick
 		<-tick.Done
-		s.cond.L.Lock()
-		s.pushEvent(s.now.Add(duration), do)
-		s.cond.L.Unlock()
-		s.cond.Signal()
+		s.queue.Push(s.now.Add(duration), do)
 	}
 
-	s.cond.L.Lock()
-	s.pushEvent(s.now.Add(duration), do)
-	s.cond.L.Unlock()
-	s.cond.Signal()
+	s.timeLock.RLock()
+	s.queue.Push(s.now.Add(duration), do)
+	s.timeLock.RUnlock()
 	return t
 }
 

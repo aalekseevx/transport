@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package xtime
 
 import "time"
@@ -5,26 +8,41 @@ import "time"
 type StdTimeManager struct{}
 
 func (r StdTimeManager) NewTicker(duration time.Duration) Ticker {
+	ticker := time.NewTicker(duration)
+	c := make(chan Tick)
+	go func() {
+		for now := range ticker.C {
+			c <- Tick{
+				Done: make(chan struct{}, 1),
+				Time: now,
+			}
+		}
+	}()
 	return &stdTimeTicker{
 		ticker: time.NewTicker(duration),
+		c:      c,
 	}
 }
 
 func (t StdTimeManager) NewTimer(d time.Duration) Timer {
+	c := make(chan Tick)
+	timer := time.NewTimer(d)
+	go func() {
+		for now := range timer.C {
+			c <- Tick{
+				Done: make(chan struct{}, 1),
+				Time: now,
+			}
+		}
+	}()
 	return stdTimer{
-		timer: time.NewTimer(d),
+		timer: timer,
+		c:     c,
 	}
 }
 
 func (t StdTimeManager) After(d time.Duration) <-chan Tick {
-	c := make(chan Tick)
-	go func() {
-		c <- Tick{
-			Done: make(chan struct{}, 1),
-			Time: <-time.After(d),
-		}
-	}()
-	return c
+	return t.NewTimer(d).C()
 }
 
 func (r StdTimeManager) Sleep(duration time.Duration) time.Time {
@@ -32,29 +50,33 @@ func (r StdTimeManager) Sleep(duration time.Duration) time.Time {
 	return time.Now()
 }
 
-func (t StdTimeManager) Now() time.Time {
+func (r StdTimeManager) Now() time.Time {
 	return time.Now()
+}
+
+func (t StdTimeManager) FreezeNow() Tick {
+	return Tick{
+		Done: make(chan struct{}, 1),
+		Time: time.Now(),
+	}
+}
+
+func (t StdTimeManager) Until(tm time.Time) time.Duration {
+	return time.Until(tm)
 }
 
 type stdTimeTicker struct {
 	ticker *time.Ticker
+	c      <-chan Tick
 }
 
 func (t stdTimeTicker) C() <-chan Tick {
-	ticked := make(chan Tick)
-	go func() {
-		for now := range t.ticker.C {
-			ticked <- Tick{
-				Done: make(chan struct{}, 1),
-				Time: now,
-			}
-		}
-	}()
-	return ticked
+	return t.c
 }
 
 type stdTimer struct {
 	timer *time.Timer
+	c     chan Tick
 }
 
 func (t stdTimer) Reset(duration time.Duration) bool {
@@ -62,14 +84,7 @@ func (t stdTimer) Reset(duration time.Duration) bool {
 }
 
 func (t stdTimer) C() <-chan Tick {
-	c := make(chan Tick)
-	go func() {
-		c <- Tick{
-			Done: make(chan struct{}, 1),
-			Time: <-t.timer.C,
-		}
-	}()
-	return c
+	return t.c
 }
 
 func (t stdTimer) Stop() bool {

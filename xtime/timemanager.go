@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package xtime
 
 import "time"
@@ -25,4 +28,6 @@ type TimeManager interface {
 	After(d time.Duration) <-chan Tick
 	Sleep(d time.Duration) time.Time
 	Now() time.Time
+	FreezeNow() Tick
+	Until(t time.Time) time.Duration
 }
