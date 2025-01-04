@@ -268,7 +268,7 @@ func (r *Router) Start() error {
 				t := r.timeManager.NewTimer(d, true)
 				select {
 				case tick := <-t.C():
-					<-tick.Done
+					tick.Done()
 				case <-cancelCh:
 					break loop
 				}

@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+type tick struct {
+	time time.Time
+	done chan struct{}
+}
+
+func (t tick) Time() time.Time {
+	return t.time
+}
+
+func (t tick) Done() {
+	t.done <- struct{}{}
+}
+
 type timer struct {
 	c         chan xtime.Tick
 	mu        sync.Mutex
@@ -49,12 +62,13 @@ func (t *timer) Reset(duration time.Duration) bool {
 	if duration < 0 {
 		panic("duration must be non negative")
 	}
+
 	t.simulator.timeLock.RLock()
 	newExpiresAt := t.simulator.now.Add(duration)
 	wasReset := t.expiresAt.Before(newExpiresAt)
 	t.expiresAt = t.simulator.now.Add(duration)
 	t.simulator.timeLock.RUnlock()
-	
+
 	t.simulator.queue.Push(t.expiresAt, func() {
 		t.mu.Lock()
 		if !t.expiresAt.Equal(t.simulator.now) {
@@ -64,20 +78,20 @@ func (t *timer) Reset(duration time.Duration) bool {
 		t.expiresAt = time.Time{}
 		t.mu.Unlock()
 
-		tick := xtime.Tick{
-			Done: make(chan struct{}),
-			Time: t.simulator.now,
+		tick := tick{
+			done: make(chan struct{}),
+			time: t.simulator.now,
 		}
 
 		if t.blocking {
 			select {
 			case t.c <- tick:
-				<-tick.Done
+				<-tick.done
 			}
 		} else {
 			select {
 			case t.c <- tick:
-				<-tick.Done
+				<-tick.done
 			default:
 			}
 		}

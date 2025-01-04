@@ -39,6 +39,10 @@ func (s *Simulator) Now() time.Time {
 	return s.now
 }
 
+func (s *Simulator) Since(tm time.Time) time.Duration {
+	return s.now.Sub(tm)
+}
+
 func (s *Simulator) FreezeNow() xtime.Tick {
 	s.timeLock.RLock()
 	now := s.now
@@ -47,9 +51,9 @@ func (s *Simulator) FreezeNow() xtime.Tick {
 		<-ch
 		s.timeLock.RUnlock()
 	}()
-	return xtime.Tick{
-		Done: ch,
-		Time: now,
+	return tick{
+		done: ch,
+		time: now,
 	}
 }
 

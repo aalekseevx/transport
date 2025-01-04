@@ -74,17 +74,17 @@ func (f *DelayFilter) Run(ctx context.Context) {
 			nowTick := f.timeManager.FreezeNow()
 			f.queue.push(timedChunk{
 				Chunk:    chunk.chunk,
-				deadline: nowTick.Time.Add(f.delay),
+				deadline: nowTick.Time().Add(f.delay),
 			})
 			next := f.queue.peek().(timedChunk) //nolint:forcetypeassert
 			timer.Stop()
 			udl := f.timeManager.Until(next.deadline)
 			timer.Reset(udl)
-			nowTick.Done <- struct{}{}
+			nowTick.Done()
 			chunk.done <- struct{}{}
 		case tick := <-timer.C():
-			f.onTick(timer, tick.Time)
-			tick.Done <- struct{}{}
+			f.onTick(timer, tick.Time())
+			tick.Done()
 		}
 	}
 }

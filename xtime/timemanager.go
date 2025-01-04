@@ -5,20 +5,27 @@ package xtime
 
 import "time"
 
-type Tick struct {
-	Done chan struct{}
-	Time time.Time
+type Tick interface {
+	// Time returns the time of the Tick
+	Time() time.Time
+	// Done must be called when you are done with the Tick and we can move forward
+	Done()
 }
 
 type Ticker interface {
-	// C returns channel, which emit chan struct{} on every tick
-	// When job is done, send struct{} to the received channel
+	// C returns channel, which will emit Ticks
+	// When job is done, call Done()
 	C() <-chan Tick
+	// Stop stops the ticker
+	Stop()
 }
 
 type Timer interface {
+	// C returns channel, which will emit a single Tick
 	C() <-chan Tick
+	// Stop stops the timer
 	Stop() bool
+	// Reset resets the timer
 	Reset(time.Duration) bool
 }
 
@@ -30,4 +37,5 @@ type TimeManager interface {
 	Now() time.Time
 	FreezeNow() Tick
 	Until(t time.Time) time.Duration
+	Since(t time.Time) time.Duration
 }

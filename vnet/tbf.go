@@ -110,6 +110,7 @@ func NewTokenBucketFilter(n NIC, opts ...TBFOption) (*TokenBucketFilter, error) 
 		wg:                    sync.WaitGroup{},
 		done:                  make(chan struct{}),
 		log:                   logging.NewDefaultLoggerFactory().NewLogger("tbf"),
+		timeManager:           xtime.StdTimeManager{},
 	}
 	tbf.Set(opts...)
 	tbf.queue = newChunkQueue(0, tbf.queueSize)
@@ -134,8 +135,8 @@ func (t *TokenBucketFilter) run() {
 			t.drainQueue()
 			return
 		case chunk := <-t.c:
-			if time.Since(lastRefill) > t.minRefillDuration {
-				t.refillTokens(time.Since(lastRefill))
+			if t.timeManager.Since(lastRefill) > t.minRefillDuration {
+				t.refillTokens(t.timeManager.Since(lastRefill))
 				lastRefill = t.timeManager.Now()
 			}
 			t.queue.push(chunk)

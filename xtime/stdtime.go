@@ -5,6 +5,17 @@ package xtime
 
 import "time"
 
+type tick struct {
+	time time.Time
+}
+
+func (t tick) Time() time.Time {
+	return t.time
+}
+
+func (t tick) Done() {
+}
+
 type StdTimeManager struct{}
 
 func (r StdTimeManager) NewTicker(duration time.Duration) Ticker {
@@ -12,9 +23,8 @@ func (r StdTimeManager) NewTicker(duration time.Duration) Ticker {
 	c := make(chan Tick)
 	go func() {
 		for now := range ticker.C {
-			c <- Tick{
-				Done: make(chan struct{}, 1),
-				Time: now,
+			c <- tick{
+				time: now,
 			}
 		}
 	}()
@@ -29,9 +39,8 @@ func (t StdTimeManager) NewTimer(d time.Duration, _ bool) Timer {
 	timer := time.NewTimer(d)
 	go func() {
 		for now := range timer.C {
-			c <- Tick{
-				Done: make(chan struct{}, 1),
-				Time: now,
+			c <- tick{
+				time: now,
 			}
 		}
 	}()
@@ -54,10 +63,13 @@ func (r StdTimeManager) Now() time.Time {
 	return time.Now()
 }
 
+func (r StdTimeManager) Since(tm time.Time) time.Duration {
+	return time.Since(tm)
+}
+
 func (t StdTimeManager) FreezeNow() Tick {
-	return Tick{
-		Done: make(chan struct{}, 1),
-		Time: time.Now(),
+	return tick{
+		time: time.Now(),
 	}
 }
 
@@ -72,6 +84,10 @@ type stdTimeTicker struct {
 
 func (t stdTimeTicker) C() <-chan Tick {
 	return t.c
+}
+
+func (t stdTimeTicker) Stop() {
+	t.ticker.Stop()
 }
 
 type stdTimer struct {

@@ -175,7 +175,7 @@ loop:
 			return n, addr, err
 
 		case tick := <-c.readTimer.C():
-			tick.Done <- struct{}{}
+			tick.Done()
 			return 0, nil, &net.OpError{
 				Op:   "read",
 				Net:  c.locAddr.Network(),

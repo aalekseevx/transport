@@ -41,10 +41,10 @@ func testSchedulesOnePacketAtATime(t *testing.T, tm xtime.TimeManager) {
 	for i := 0; i < 100; i++ {
 		sent := tm.FreezeNow()
 		df.onInboundChunk(&chunkUDP{
-			chunkIP:  chunkIP{timestamp: sent.Time},
+			chunkIP:  chunkIP{timestamp: sent.Time()},
 			userData: []byte{byte(i)},
 		})
-		sent.Done <- struct{}{}
+		sent.Done()
 
 		c := <-receiveCh
 		nr := int(c.c.UserData()[0])
@@ -52,7 +52,7 @@ func testSchedulesOnePacketAtATime(t *testing.T, tm xtime.TimeManager) {
 		assert.Greater(t, nr, lastNr)
 		lastNr = nr
 
-		assert.GreaterOrEqual(t, c.ts.Sub(sent.Time), 10*time.Millisecond)
+		assert.GreaterOrEqual(t, c.ts.Sub(sent.Time()), 10*time.Millisecond)
 	}
 }
 
@@ -84,11 +84,11 @@ func testSchedulesSubsequentManyPackets(t *testing.T, tm xtime.TimeManager) {
 	sent := tm.FreezeNow()
 	for i := 0; i < 100; i++ {
 		df.onInboundChunk(&chunkUDP{
-			chunkIP:  chunkIP{timestamp: sent.Time},
+			chunkIP:  chunkIP{timestamp: sent.Time()},
 			userData: []byte{byte(i)},
 		})
 	}
-	sent.Done <- struct{}{}
+	sent.Done()
 
 	// receive 100 chunks with delay>10ms
 	for i := 0; i < 100; i++ {
@@ -96,7 +96,7 @@ func testSchedulesSubsequentManyPackets(t *testing.T, tm xtime.TimeManager) {
 		case c := <-receiveCh:
 			nr := int(c.c.UserData()[0])
 			assert.Equal(t, i, nr)
-			assert.Greater(t, c.ts.Sub(sent.Time), 10*time.Millisecond)
+			assert.Greater(t, c.ts.Sub(sent.Time()), 10*time.Millisecond)
 		case <-tm.After(time.Second, false):
 			assert.Fail(t, "expected to receive next chunk")
 		}

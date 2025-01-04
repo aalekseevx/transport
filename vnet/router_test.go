@@ -5,6 +5,7 @@ package vnet
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -301,94 +302,101 @@ func TestRouterDelay(t *testing.T) {
 	loggerFactory := logging.NewDefaultLoggerFactory()
 	log := loggerFactory.NewLogger("test")
 
-	subTest := func(t *testing.T, title string, minDelay, maxJitter time.Duration) {
-		t.Run(title, func(t *testing.T) {
-			const margin = 8 * time.Millisecond
-			var nCBs int32
-			doneCh := make(chan struct{})
-			r, err := NewRouter(&RouterConfig{
-				CIDR:          "1.2.3.0/24",
-				MinDelay:      minDelay,
-				MaxJitter:     maxJitter,
-				LoggerFactory: loggerFactory,
-			})
-			if !assert.Nil(t, err, "should succeed") {
+	subTest := func(t *testing.T, minDelay, maxJitter time.Duration) {
+		const margin = 8 * time.Millisecond
+		var nCBs int32
+		doneCh := make(chan struct{})
+		r, err := NewRouter(&RouterConfig{
+			CIDR:          "1.2.3.0/24",
+			MinDelay:      minDelay,
+			MaxJitter:     maxJitter,
+			LoggerFactory: loggerFactory,
+		})
+		if !assert.Nil(t, err, "should succeed") {
+			return
+		}
+
+		nic := make([]*dummyNIC, 2)
+		ip := make([]*net.UDPAddr, 2)
+
+		for i := 0; i < 2; i++ {
+			anic, netErr := NewNet(&NetConfig{})
+			if !assert.NoError(t, netErr, "should succeed") {
 				return
 			}
 
-			nic := make([]*dummyNIC, 2)
-			ip := make([]*net.UDPAddr, 2)
-
-			for i := 0; i < 2; i++ {
-				anic, netErr := NewNet(&NetConfig{})
-				if !assert.NoError(t, netErr, "should succeed") {
-					return
-				}
-
-				nic[i] = &dummyNIC{
-					Net: anic,
-				}
-
-				err2 := r.AddNet(nic[i])
-				assert.Nil(t, err2, "should succeed")
-
-				// Now, eth0 must have one address assigned
-				eth0, err2 := nic[i].getInterface("eth0")
-				assert.Nil(t, err2, "should succeed")
-				addrs, err2 := eth0.Addrs()
-				assert.Nil(t, err2, "should succeed")
-				assert.Equal(t, 1, len(addrs), "should match")
-				//nolint:forcetypeassert
-				ip[i] = &net.UDPAddr{
-					IP:   addrs[0].(*net.IPNet).IP,
-					Port: 1111 * (i + 1),
-				}
+			nic[i] = &dummyNIC{
+				Net: anic,
 			}
 
-			var delayRes []time.Duration
-			nPkts := 1
+			err2 := r.AddNet(nic[i])
+			assert.Nil(t, err2, "should succeed")
 
-			nic[0].onInboundChunkHandler = func(Chunk) {}
-
-			nic[1].onInboundChunkHandler = func(c Chunk) {
-				delay := time.Since(c.getTimestamp())
-				delayRes = append(delayRes, delay)
-				n := atomic.AddInt32(&nCBs, 1)
-				if n == int32(nPkts) {
-					close(doneCh)
-				}
+			// Now, eth0 must have one address assigned
+			eth0, err2 := nic[i].getInterface("eth0")
+			assert.Nil(t, err2, "should succeed")
+			addrs, err2 := eth0.Addrs()
+			assert.Nil(t, err2, "should succeed")
+			assert.Equal(t, 1, len(addrs), "should match")
+			//nolint:forcetypeassert
+			ip[i] = &net.UDPAddr{
+				IP:   addrs[0].(*net.IPNet).IP,
+				Port: 1111 * (i + 1),
 			}
+		}
 
-			err = r.Start()
-			assert.Nil(t, err, "should succeed")
+		var delayRes []time.Duration
+		nPkts := 1
 
-			for i := 0; i < nPkts; i++ {
-				c := newChunkUDP(ip[0], ip[1])
-				r.push(c)
-				time.Sleep(50 * time.Millisecond)
+		nic[0].onInboundChunkHandler = func(Chunk) {}
+
+		nic[1].onInboundChunkHandler = func(c Chunk) {
+			delay := time.Since(c.getTimestamp())
+			delayRes = append(delayRes, delay)
+			n := atomic.AddInt32(&nCBs, 1)
+			fmt.Println(n)
+			if n == int32(nPkts) {
+				close(doneCh)
 			}
+		}
 
-			<-doneCh
-			err = r.Stop()
-			assert.Nil(t, err, "should succeed")
+		err = r.Start()
+		assert.Nil(t, err, "should succeed")
 
-			// Validate the amount of delays
-			for _, d := range delayRes {
-				log.Infof("min delay : %v", minDelay)
-				log.Infof("max jitter: %v", maxJitter)
-				log.Infof("actual delay: %v", d)
-				assert.True(t, d >= minDelay, "should delay >= 20ms")
-				assert.True(t, d <= (minDelay+maxJitter+margin), "should delay <= minDelay + maxJitter")
-				// Note: actual delay should be within 30ms but giving a 8ms
-				// margin for possible extra delay
-				// (e.g. wakeup delay, debug logs, etc)
-			}
-		})
+		for i := 0; i < nPkts; i++ {
+			c := newChunkUDP(ip[0], ip[1])
+			r.push(c)
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		<-doneCh
+		err = r.Stop()
+		assert.Nil(t, err, "should succeed")
+
+		// Validate the amount of delays
+		for _, d := range delayRes {
+			log.Infof("min delay : %v", minDelay)
+			log.Infof("max jitter: %v", maxJitter)
+			log.Infof("actual delay: %v", d)
+			assert.True(t, d >= minDelay, "should delay >= 20ms")
+			assert.True(t, d <= (minDelay+maxJitter+margin), "should delay <= minDelay + maxJitter")
+			// Note: actual delay should be within 30ms but giving a 8ms
+			// margin for possible extra delay
+			// (e.g. wakeup delay, debug logs, etc)
+		}
 	}
 
-	subTest(t, "Delay only", 20*time.Millisecond, 0)
-	subTest(t, "Jitter only", 0, 10*time.Millisecond)
-	subTest(t, "Delay and Jitter", 20*time.Millisecond, 10*time.Millisecond)
+	t.Run("Delay only", func(t *testing.T) {
+		subTest(t, 20*time.Millisecond, 0)
+	})
+
+	t.Run("Jitter only", func(t *testing.T) {
+		subTest(t, 0, 10*time.Millisecond)
+	})
+
+	t.Run("Delay and Jitter", func(t *testing.T) {
+		subTest(t, 20*time.Millisecond, 10*time.Millisecond)
+	})
 }
 
 func TestRouterOneChild(t *testing.T) {

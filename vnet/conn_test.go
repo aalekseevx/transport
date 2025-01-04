@@ -5,6 +5,7 @@ package vnet
 
 import (
 	"errors"
+	"github.com/pion/transport/v3/vtime"
 	"github.com/pion/transport/v3/xtime"
 	"net"
 	"sync/atomic"
@@ -249,7 +250,7 @@ func TestUDPConn(t *testing.T) {
 		deadlineTest(t, false)
 	})
 
-	t.Run("Inbound during close", func(t *testing.T) {
+	t.Run("InboundDuringClose_StdTime", func(t *testing.T) {
 		var conn *UDPConn
 		var err error
 		srcAddr := &net.UDPAddr{
@@ -260,7 +261,7 @@ func TestUDPConn(t *testing.T) {
 			onOnClosed: func(net.Addr) {},
 		}
 
-		for i := 0; i < 1000; i++ { // nolint:staticcheck // (false positive detection)
+		for i := 0; i < 20; i++ {
 			conn, err = newUDPConn(srcAddr, nil, obs, xtime.StdTimeManager{})
 			assert.NoError(t, err, "should succeed")
 
@@ -270,15 +271,58 @@ func TestUDPConn(t *testing.T) {
 				assert.NoError(t, conn.Close())
 				close(chDone)
 			}()
+
 			tick := time.NewTicker(10 * time.Millisecond)
+			defer tick.Stop()
+
+		loop:
 			for {
-				defer tick.Stop()
 				select {
 				case <-chDone:
-					return
+					break loop
 				case <-tick.C:
 					conn.onInboundChunk(nil)
 				}
+			}
+		}
+	})
+
+	t.Run("InboundDuringClose_VTime", func(t *testing.T) {
+		tm := vtime.NewSimulator(time.Time{})
+
+		var conn *UDPConn
+		var err error
+		srcAddr := &net.UDPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: 1234,
+		}
+		obs := &dummyObserver{
+			onOnClosed: func(net.Addr) {},
+		}
+
+		conn, err = newUDPConn(srcAddr, nil, obs, tm)
+		assert.NoError(t, err, "should succeed")
+
+		chDone := make(chan struct{})
+		go func() {
+			assert.NoError(t, conn.Close())
+			close(chDone)
+		}()
+
+		tick := tm.NewTicker(10 * time.Millisecond)
+		defer tick.Stop()
+
+		tm.Start()
+		defer tm.Stop()
+
+	loop:
+		for {
+			select {
+			case <-chDone:
+				break loop
+			case tick := <-tick.C():
+				conn.onInboundChunk(nil)
+				tick.Done()
 			}
 		}
 	})

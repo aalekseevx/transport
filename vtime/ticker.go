@@ -26,12 +26,12 @@ func (s *Simulator) NewTicker(duration time.Duration) xtime.Ticker {
 		if t.stopped {
 			return
 		}
-		tick := xtime.Tick{
-			Done: make(chan struct{}),
-			Time: s.now,
+		tick := tick{
+			done: make(chan struct{}),
+			time: s.now,
 		}
 		t.c <- tick
-		<-tick.Done
+		<-tick.done
 		s.queue.Push(s.now.Add(duration), do)
 	}
 
